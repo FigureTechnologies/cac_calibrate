@@ -84,6 +84,7 @@ class TestRegression(unittest.TestCase):
             self.df_train = dm.load_train()
             self.df_serve = dm.load_serve()
             self.setup_done = True
+        self.cal = None
 
     def compute_calibration_old(self):
         cf = CacForecaster()
@@ -98,13 +99,13 @@ class TestRegression(unittest.TestCase):
         return res
 
     def compute_calibration_new(self):
-        cal = cc.Regression(
+        self.cal = cc.Regression(
             score_name="score",
             target_name="applied",
             num_bins=30
         )
-        cal.fit(self.df_train)
-        res = cal.transform(
+        self.cal.fit(self.df_train)
+        res = self.cal.transform(
             df=self.df_serve,
             mail_cost=MAIL_COST,
             conv_rate=CONV_RATE,
@@ -189,6 +190,8 @@ class CacForecaster:  # pylint: disable=R0903
             .astype("str")
             .astype(np.float32)
         )
+        precision_lookup["mid_bucket"] = \
+            precision_lookup[["lower_bucket", "upper_bucket"]].mean(axis=1)
 
         lower_bound = precision_lookup.lower_bucket.min()
         upper_bound = precision_lookup.upper_bucket.max()
@@ -200,6 +203,7 @@ class CacForecaster:  # pylint: disable=R0903
             df_scores[score_name] > upper_bound, upper_bound, df_scores[score_name]
         )
 
+        # NOTE: why filter precision_lookup on max_campaign?
         df_scores = pd.merge_asof(
             df_scores,
             precision_lookup.loc[precision_lookup["campaign"] == max_campaign],
