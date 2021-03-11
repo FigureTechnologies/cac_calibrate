@@ -38,7 +38,8 @@ class Regression:  # pylint: disable=R0902
 
         self.max_campaign = None
         self.bucket_name = "score_bucket"
-        self.binner = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        self.binner_tr = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        self.binner_serve = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
         self.reg_cols = ["campaign", self.bucket_name]
         self.calibrator = None
@@ -47,9 +48,17 @@ class Regression:  # pylint: disable=R0902
         df = df.copy()
         df["campaign"] = df.campaign.str[0:4]
         self.max_campaign = df["campaign"].max()
-        y_bin = df[self.score_name].values.reshape(-1, 1)
-        self.binner.fit(y_bin)
-        df[self.bucket_name] = self.binner.transform(y_bin)
+
+        y_bin_serve = (
+            df.loc[df["campaign"] == self.max_campaign, self.score_name].
+            values.
+            reshape(-1, 1)
+        )
+        self.binner_serve.fit(y_bin_serve)
+
+        y_bin_tr = df[self.score_name].values.reshape(-1, 1)
+        self.binner_tr.fit(y_bin_tr)
+        df[self.bucket_name] = self.binner_tr.transform(y_bin_tr)
         df_regr = (
             df.
             groupby(["campaign", "score_bucket"], as_index=False, observed=True)[self.target_name].
@@ -61,7 +70,7 @@ class Regression:  # pylint: disable=R0902
         y = df_regr[self.target_name].values
         self.calibrator = stm.OLS(y, X_hot).fit()
 
-    def transform(self, df, mail_cost=0.415, conv_rate=0.1338, quantiles=None):
+    def transform(self, df, mail_cost, conv_rate, quantiles=None):
 
         def prob2cac(prob):
             return mail_cost/(prob*conv_rate)
@@ -71,7 +80,7 @@ class Regression:  # pylint: disable=R0902
         df = df.copy()
         idx = df.copy()
 
-        df[self.bucket_name] = self.binner.transform(
+        df[self.bucket_name] = self.binner_serve.transform(
             df[self.score_name].values.reshape(-1, 1)
         )
         X = df[[self.bucket_name]].copy()
