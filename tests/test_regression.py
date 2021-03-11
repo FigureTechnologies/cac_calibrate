@@ -225,11 +225,11 @@ class CacForecaster:  # pylint: disable=R0903
 
         y_hat = stm.OLS(y, X).fit()
 
-        results = results_summary_to_dataframe(y_hat).reset_index()
+        results = results_summary_to_dataframe(y_hat)
+        # results = results.reset_index()
 
-        results["index"] = df_train_cac["campaign"]
-
-        fixed_effect = float(results.loc[results["index"] == "2101"]["coeff"].values[0])
+        # results["index"] = df_train_cac["campaign"]
+        fixed_effect = float(results.at["campaign__2101", "coeff"])
 
         cm_cols = []
         bin_cols = []
