@@ -38,16 +38,23 @@ class RegressionCalibrator:  # pylint: disable=R0902
         self.target_name = target_name
         self.num_bins = num_bins
         self.feature_cols = feature_cols
+
         self.regr_cols = feature_cols + [BUCKET_NAME]
 
-        self.transform_cols = self.feature_cols + [score_name]
         self.fit_cols = self.feature_cols + [score_name, target_name]
+        self.transform_cols = self.feature_cols + [score_name]
 
         self.binner = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
         self.calibrator = None
 
-    def fit(self, df: pd.DataFrame):
+    @staticmethod
+    def _validate_columns(df: pd.DataFrame, expected: List) -> None:
+        diff = set(expected) - set(df.columns)
+        if diff:
+            raise ValueError(f"Columns {diff} missing from input DataFrame.")
+
+    def fit(self, df: pd.DataFrame) -> None:
         """
         Parameters
         ----------
@@ -55,6 +62,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
             columns=[self.feature_cols] + [self.score_name, self.target_name]
         )
         """
+        self._validate_columns(df, self.fit_cols)
         df = df.copy()
         df = df.sort_values(by=self.score_name)
 
@@ -79,11 +87,14 @@ class RegressionCalibrator:  # pylint: disable=R0902
         quantiles: List[float] = None
     ) -> pd.DataFrame:
         """
+        Provide cac estimates.
+
         Parameters
         ----------
         df: DataFrame(
-            columns=self.feature_cols + [str]
+            columns=self.feature_cols + [self.score_name] + ...
         )
+            Note: This method will overwrite df's index.
         mail_cost: float
         conv_rate: float
         quantiles: [float]
@@ -95,6 +106,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
             columns=df.columns.difference(self.feature_cols) + [cac columns]
         )
         """
+        self._validate_columns(df, self.transform_cols)
+
         def prob2cac(prob):
             return mail_cost/(prob*conv_rate)
 
@@ -102,6 +115,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
             quantiles = cfg.quantile_default
 
         df = df.sort_values(by=self.score_name).reset_index(drop=True)
+
         idx = df.drop(self.feature_cols, axis=1)
 
         df[BUCKET_NAME] = self.binner.transform(
