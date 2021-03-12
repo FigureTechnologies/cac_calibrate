@@ -83,7 +83,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
         )
         mail_cost: float
         conv_rate: float
-        quantile: [float]
+        quantiles: [float]
+            cac quantiles to return.
 
         Returns
         -------
