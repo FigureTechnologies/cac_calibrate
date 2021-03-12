@@ -12,41 +12,21 @@ import statsmodels.api as stm
 from data_science_util.utils.python_ml import (RobustHot,
                                                results_summary_to_dataframe)
 
+import cac_calibrate.config as cfg
 import cac_calibrate.core as cc
 
 DATA_DIR = join(Path(__file__).parent.absolute(), "data")
 MAIL_COST = 0.415
 CONV_RATE = 0.1338
 NUM_BINS = 20
-CAC_COMPARE_THRESHOLD = 5000
-MAX_DIFF_THRESHOLD_PCT = 0.025
-QUANTILES = [
-    0.025,
-    0.05,
-    0.1,
-    0.15,
-    0.2,
-    0.25,
-    0.3,
-    0.35,
-    0.4,
-    0.45,
-    0.5,
-    0.55,
-    0.6,
-    0.65,
-    0.7,
-    0.75,
-    0.8,
-    0.85,
-    0.9,
-    0.95,
-    0.975
-]
+CAC_COMPARE_THRESHOLD = 5000  # Only test cacs under this threshold
+MAX_DIFF_THRESHOLD_PCT = 0.025  # Pass tests if cac difference < this threshold
 
 
 class DataManager:
-
+    """
+    Fetch and load data for tests.
+    """
     def __init__(self):
         self.train_path_remote = "gs://figure-ml-pipeline/heloc/32/net_objects/train_pred.h5"
         self.serve_path_remote = "gs://figure-ml-pipeline/heloc/32/net_objects/serve_pred.h5"
@@ -98,7 +78,7 @@ class TestRegressionCalibrator(unittest.TestCase):
             score_payload=self.df_serve,
             mail_cost=MAIL_COST,
             conv_rate=CONV_RATE,
-            cac_quantile=QUANTILES,
+            cac_quantile=cfg.quantile_default,
             score_name="score"
         )
         return res
@@ -116,7 +96,7 @@ class TestRegressionCalibrator(unittest.TestCase):
             df=self.df_serve,
             mail_cost=MAIL_COST,
             conv_rate=CONV_RATE,
-            quantiles=QUANTILES
+            quantiles=cfg.quantile_default
         )
         return res
 
@@ -124,6 +104,7 @@ class TestRegressionCalibrator(unittest.TestCase):
         cal_new = self.cal_new.loc[self.cal_new["cac"] <= CAC_COMPARE_THRESHOLD]
         cal_old = self.cal_old.loc[self.cal_old["cac"] <= CAC_COMPARE_THRESHOLD]
         merged = cal_new.merge(cal_old, on=["RECORD_NB", "ENCRYPTED_NB"], suffixes=("_new", "_old"))
+        # Don't test high quantiles, because inf != inf
         test_cols = ["cac", "cac_0.2", "cac_0.4", "cac_0.5", "cac_0.7"]
         for c in test_cols:
             abs_diff = np.abs(merged[f"{c}_new"] - merged[f"{c}_old"]).mean()
@@ -144,29 +125,7 @@ class CacForecaster:  # pylint: disable=R0903
         score_payload,
         mail_cost,
         conv_rate,
-        cac_quantile: Tuple[float] = (
-            0.025,
-            0.05,
-            0.1,
-            0.15,
-            0.2,
-            0.25,
-            0.3,
-            0.35,
-            0.4,
-            0.45,
-            0.5,
-            0.55,
-            0.6,
-            0.65,
-            0.7,
-            0.75,
-            0.8,
-            0.85,
-            0.9,
-            0.95,
-            0.975,
-        ),
+        cac_quantile: Tuple[float],
         score_name: str = None,
     ):
 
