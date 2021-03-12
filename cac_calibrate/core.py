@@ -1,4 +1,4 @@
-from functools import cached_property
+from typing import List
 
 import numpy as np
 import pandas as pd
@@ -31,110 +31,99 @@ DEFAULT_Q = [
 ]
 
 
-class QuantileBinner:
+class RegressionCalibrator:  # pylint: disable=R0902
 
-    def __init__(self, num_bins):
-        self.num_bins = num_bins
-
-        self.buckets = None
-        self._idx_col = "__bucket_idx__"
-        self._value_col = "__bucket_value__"
-
-    def fit(self, x):
-        x = np.squeeze(x)
-        buckets = pd.qcut(x, q=self.num_bins).unique()
-        buckets = pd.DataFrame({
-            self._idx_col: np.arange(len(buckets)),
-            self._value_col: sorted([i.left for i in buckets])
-        })
-        buckets[self._value_col] = buckets[self._value_col].astype(np.float64)
-        self.buckets = buckets
-
-    @cached_property
-    def _min_bucket_val(self):
-        return self.buckets[self._value_col].min()
-
-    @cached_property
-    def _max_bucket_val(self):
-        return self.buckets[self._value_col].max()
-
-    def transform(self, x):
-        x = np.squeeze(x).astype(np.float64)
-        idx_sort = np.argsort(x)
-        x = x[idx_sort]
-        score_col = "score"
-        df = pd.DataFrame(x, columns=[score_col])
-
-        xf = pd.merge_asof(
-            left=df,
-            right=self.buckets,
-            left_on=score_col,
-            right_on=self._value_col,
-            allow_exact_matches=False
-        )
-        xf.loc[xf[score_col] <= self._min_bucket_val, self._idx_col] = 0
-        xf.loc[xf[score_col] >= self._max_bucket_val, self._idx_col] = self.num_bins - 1
-
-        buckets_sorted = xf[self._idx_col].values.astype(int)
-        idx_unsort = np.zeros_like(buckets_sorted)
-        idx_unsort[idx_sort] = np.arange(len(idx_unsort))
-        buckets_unsorted = buckets_sorted[idx_unsort]
-        return buckets_unsorted
-
-    def fit_transform(self, x):
-        self.fit(x)
-        return self.transform(x)
-
-
-class Regression:  # pylint: disable=R0902
-
-    def __init__(self, score_name, target_name, num_bins):
+    def __init__(
+        self,
+        score_name: str,
+        target_name: str,
+        num_bins: int,
+        feature_cols: List[str]
+    ):
+        """
+        Parameters
+        ----------
+        score_name: str
+            Name of score to be calibrated.
+        target_name: str
+            Name of target.
+        num_bins: int
+            Number of bins to use for calibration.
+        feature_cols: [str]
+            Names of features for the calibration regression.
+        """
         self.score_name = score_name
         self.target_name = target_name
         self.num_bins = num_bins
+        self.feature_cols = feature_cols
+        self.regr_cols = feature_cols + [BUCKET_NAME]
 
-        self.max_campaign = None
+        self.transform_cols = self.feature_cols + [score_name]
+        self.fit_cols = self.feature_cols + [score_name, target_name]
+
         self.binner = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
-        self.reg_cols = ["campaign", BUCKET_NAME]
         self.calibrator = None
 
-    def fit(self, df):
+    def fit(self, df: pd.DataFrame):
+        """
+        Parameters
+        ----------
+        df: DataFrame(
+            columns=[self.feature_cols] + [self.score_name, self.target_name]
+        )
+        """
         df = df.copy()
-        df["campaign"] = df.campaign.str[0:4]
         df = df.sort_values(by=self.score_name)
-        self.max_campaign = df["campaign"].max()
 
         y_bin_tr = df[self.score_name].values.reshape(-1, 1)
         self.binner.fit(y_bin_tr)
         df[BUCKET_NAME] = self.binner.transform(y_bin_tr)
         df_regr = (
             df.
-            groupby(["campaign", BUCKET_NAME], as_index=False, observed=True)[self.target_name].
-            mean().
-            sort_values(by=["campaign", BUCKET_NAME])
+            groupby(self.regr_cols, as_index=False, observed=True)[self.target_name].
+            mean()
         )
-        X = df_regr[self.reg_cols]
+        X = df_regr[self.regr_cols]
         X_hot = self.ohe.fit_transform(X)
         y = df_regr[self.target_name].values
         self.calibrator = stm.OLS(y, X_hot).fit()
 
-    def transform(self, df, mail_cost, conv_rate, quantiles=None):
+    def transform(
+        self,
+        df: pd.DataFrame,
+        mail_cost: float,
+        conv_rate: float,
+        quantiles: List[float] = None
+    ) -> pd.DataFrame:
+        """
+        Parameters
+        ----------
+        df: DataFrame(
+            columns=self.feature_cols + [str]
+        )
+        mail_cost: float
+        conv_rate: float
+        quantile: [float]
 
+        Returns
+        -------
+        DataFrame(
+            columns=df.columns.difference(self.feature_cols) + [cac columns]
+        )
+        """
         def prob2cac(prob):
             return mail_cost/(prob*conv_rate)
 
         quantiles = quantiles or DEFAULT_Q
 
         df = df.sort_values(by=self.score_name).reset_index(drop=True)
-        idx = df.copy()
+        idx = df.drop(self.feature_cols, axis=1)
 
         df[BUCKET_NAME] = self.binner.transform(
             df[self.score_name].values.reshape(-1, 1)
         )
-        X = df[[BUCKET_NAME]].copy()
-        X["campaign"] = self.max_campaign
-        X = X[self.reg_cols]
+        X = df[self.regr_cols]
         X_hot = self.ohe.transform(X)
         preds = self.calibrator.get_prediction(X_hot)
 

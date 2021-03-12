@@ -12,7 +12,7 @@ import statsmodels.api as stm
 from data_science_util.utils.python_ml import (RobustHot,
                                                results_summary_to_dataframe)
 
-import cac_calibrate.calibrate as cc
+import cac_calibrate.core as cc
 
 DATA_DIR = join(Path(__file__).parent.absolute(), "data")
 MAIL_COST = 0.415
@@ -78,7 +78,7 @@ class DataManager:
         return res
 
 
-class TestRegression(unittest.TestCase):
+class TestRegressionCalibrator(unittest.TestCase):
     setup_done = False
 
     def setUp(self):
@@ -104,12 +104,14 @@ class TestRegression(unittest.TestCase):
         return res
 
     def compute_calibration_new(self):
-        self.cal = cc.Regression(
+        self.cal = cc.RegressionCalibrator(
             score_name="score",
             target_name="applied",
-            num_bins=NUM_BINS
+            num_bins=NUM_BINS,
+            feature_cols=["campaign"]
         )
         self.cal.fit(self.df_train)
+        self.df_serve["campaign"] = self.df_train["campaign"].astype(str).max()
         res = self.cal.transform(
             df=self.df_serve,
             mail_cost=MAIL_COST,
