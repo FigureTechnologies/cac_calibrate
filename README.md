@@ -33,5 +33,5 @@ cac_output = rc.transform(
 ```
 
 ## Notes on Tests
-* Tests require `data-science-util` which is not listed in `setup.py`.
+* Tests require `data-science-util`, which is not listed in `setup.py`.
 * Tests use actual serving data, so they require 50+ GB of RAM and 20+ GB of disk, so don't attempt to run them locally.
