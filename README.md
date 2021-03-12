@@ -35,4 +35,4 @@ cac_output = rc.transform(
 ## Tests
 Here are some important notes on tests, if you want to run them.
 * Tests require packages not listed in `setup.py`.
-* Tests use actual serving data, so they require 50+ GB of RAM
+* Tests use actual serving data, so they require 50+ GB of RAM.
