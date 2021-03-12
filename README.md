@@ -1,7 +1,7 @@
 # cac-calibrate
 Calibrate model scores, and translate them to cac.
 
-
+NOTE: At this point, we assume that all features passed to the calibrator are categorical.
 
 ## Example
 Givent data frames `df_train` and `df_serve`, to calculate cac outputs, we'd do something like the following.
