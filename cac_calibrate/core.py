@@ -20,6 +20,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
         feature_cols: List[str]
     ):
         """
+        Convert scores to cac using binning/regression.
+
         Parameters
         ----------
         score_name: str
@@ -30,6 +32,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
             Number of bins to use for calibration.
         feature_cols: [str]
             Names of features for the calibration regression.
+            NOTE: Currently, we expect all features to be categorical.
         """
         self.score_name = score_name
         self.target_name = target_name
