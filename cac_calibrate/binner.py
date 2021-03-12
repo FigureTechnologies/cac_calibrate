@@ -5,15 +5,23 @@ import pandas as pd
 
 
 class QuantileBinner:
+    """
+    Do a quantile-based fit/transform using qcut from pandas. This class is designed to mimic
+    the functionality found in the legacy calibrator.
 
-    def __init__(self, num_bins):
+    Parameters
+    ----------
+    num_bins: int
+        Number of bins to use in qcut.
+    """
+    def __init__(self, num_bins: int):
         self.num_bins = num_bins
 
         self.buckets = None
         self._idx_col = "__bucket_idx__"
         self._value_col = "__bucket_value__"
 
-    def fit(self, x):
+    def fit(self, x: np.array):
         x = np.squeeze(x)
         buckets = pd.qcut(x, q=self.num_bins).unique()
         buckets = pd.DataFrame({
@@ -24,14 +32,14 @@ class QuantileBinner:
         self.buckets = buckets
 
     @cached_property
-    def _min_bucket_val(self):
+    def _min_bucket_val(self) -> float:
         return self.buckets[self._value_col].min()
 
     @cached_property
-    def _max_bucket_val(self):
+    def _max_bucket_val(self) -> float:
         return self.buckets[self._value_col].max()
 
-    def transform(self, x):
+    def transform(self, x: np.array) -> np.array:
         x = np.squeeze(x).astype(np.float64)
         idx_sort = np.argsort(x)
         x = x[idx_sort]
@@ -54,6 +62,6 @@ class QuantileBinner:
         buckets_unsorted = buckets_sorted[idx_unsort]
         return buckets_unsorted
 
-    def fit_transform(self, x):
+    def fit_transform(self, x: np.array) -> np.array:
         self.fit(x)
         return self.transform(x)
