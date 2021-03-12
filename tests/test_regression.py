@@ -17,6 +17,7 @@ import cac_calibrate.calibrate as cc
 DATA_DIR = join(Path(__file__).parent.absolute(), "data")
 MAIL_COST = 0.415
 CONV_RATE = 0.1338
+NUM_BINS = 10
 QUANTILES = [
     0.025,
     0.05,
@@ -72,6 +73,7 @@ class DataManager:
         self._check_path(self.serve_path_local)
         res = pd.read_hdf(self.serve_path_local).iloc[:, :3]
         res = res.rename(columns={"score_raw": "score"})
+        res = res.sample(n=500000, random_state=0)
         return res
 
 
@@ -102,7 +104,7 @@ class TestRegression(unittest.TestCase):
         self.cal = cc.Regression(
             score_name="score",
             target_name="applied",
-            num_bins=30
+            num_bins=NUM_BINS
         )
         self.cal.fit(self.df_train)
         res = self.cal.transform(
@@ -172,9 +174,11 @@ class CacForecaster:  # pylint: disable=R0903
 
         df_scores = df_scores.sort_values(by=score_name)
 
-        df["score_bucket"] = pd.qcut(df[score_name], q=30)
+        df["score_bucket"] = pd.qcut(df[score_name], q=NUM_BINS)
+        # print(df["score_bucket"])
 
         precision_lookup = df.groupby(["score_bucket", "campaign"]).mean()["applied"].reset_index()
+        print(precision_lookup.sort_values(by=["campaign", "applied"]))
 
         df_train_cac = precision_lookup.copy()
 
@@ -221,6 +225,7 @@ class CacForecaster:  # pylint: disable=R0903
 
         X = X.drop(columns=[i for i in X.columns if ("nan" in i) or (min_campaign in i)])
 
+        # print(df_train_cac[["campaign", "applied"]].sort_values(by=["campaign", "applied"]))
         y = df_train_cac["applied"]
 
         y_hat = stm.OLS(y, X).fit()

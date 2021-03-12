@@ -3,6 +3,7 @@ import pandas as pd
 import sklearn.preprocessing as sp
 import statsmodels.api as stm
 
+BUCKET_NAME = "score_bucket"
 DEFAULT_Q = [
     0.025,
     0.05,
@@ -28,6 +29,56 @@ DEFAULT_Q = [
 ]
 
 
+class QuantileBinner:
+
+    def __init__(self, num_bins):
+        self.num_bins = num_bins
+
+        self.buckets = None
+        self._idx_col = "__bucket_idx__"
+        self._value_col = "__bucket_value__"
+
+    def fit(self, x):
+        x = np.squeeze(x)
+        buckets = pd.qcut(x, q=self.num_bins).unique()
+        buckets = pd.DataFrame({
+            self._idx_col: np.arange(len(buckets)),
+            self._value_col: sorted([i.left for i in buckets])
+        })
+        buckets[self._value_col] = buckets[self._value_col].astype(np.float64)
+        self.buckets = buckets
+        print(self.buckets)
+
+    @property
+    def min_bucket_val(self):
+        return self.buckets[self._value_col].min()
+
+    @property
+    def max_bucket_val(self):
+        return self.buckets[self._value_col].max()
+
+    def transform(self, x):
+        x = np.squeeze(x).astype(np.float64)
+        # idx_sort = np.argsort(x)
+        # x = x[idx_sort]
+        df = pd.DataFrame(x, columns=["score"])
+
+        merged = pd.merge_asof(
+            left=df,
+            right=self.buckets,
+            left_on="score",
+            right_on=self._value_col,
+            allow_exact_matches=False
+        )
+        merged.loc[merged["score"] <= self.min_bucket_val, self._idx_col] = 0
+        merged.loc[merged["score"] >= self.max_bucket_val, self._idx_col] = self.num_bins - 1
+        buckets_sorted = merged[self._idx_col].values.astype(int)
+        # idx_unsort = np.zeros_like(buckets_sorted)
+        # idx_unsort[idx_sort] = np.arange(len(idx_unsort))
+        # buckets_unsorted = buckets_sorted[idx_unsort]
+        return buckets_sorted
+
+
 class Regression:  # pylint: disable=R0902
 
     def __init__(self, score_name, target_name, num_bins):
@@ -37,16 +88,18 @@ class Regression:  # pylint: disable=R0902
         self.expected_cols = ["RECORD_NB", "ENCRYPTED_NB", "campaign", self.score_name]
 
         self.max_campaign = None
-        self.bucket_name = "score_bucket"
-        self.binner_tr = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
-        self.binner_serve = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        # self.binner_tr = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        # self.binner_serve = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        self.binner_tr = QuantileBinner(num_bins=self.num_bins)
+        self.binner_serve = QuantileBinner(num_bins=self.num_bins)
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
-        self.reg_cols = ["campaign", self.bucket_name]
+        self.reg_cols = ["campaign", BUCKET_NAME]
         self.calibrator = None
 
     def fit(self, df):
         df = df.copy()
         df["campaign"] = df.campaign.str[0:4]
+        df = df.sort_values(by=self.score_name)
         self.max_campaign = df["campaign"].max()
 
         y_bin_serve = (
@@ -58,13 +111,23 @@ class Regression:  # pylint: disable=R0902
 
         y_bin_tr = df[self.score_name].values.reshape(-1, 1)
         self.binner_tr.fit(y_bin_tr)
-        df[self.bucket_name] = self.binner_tr.transform(y_bin_tr)
-        df_regr = (
-            df.
-            groupby(["campaign", "score_bucket"], as_index=False, observed=True)[self.target_name].
-            mean().
-            sort_values(by=["campaign", "score_bucket"])
+        df[BUCKET_NAME] = self.binner_tr.transform(y_bin_tr)
+        tmp = df.copy()
+        tmp["bin"] = pd.qcut(tmp[self.score_name], q=self.num_bins)
+        tmp = tmp.groupby(["campaign", "bin"])[self.target_name].mean()
+        df_regr = df.copy()
+        df_regr[BUCKET_NAME] = pd.qcut(
+            df_regr[self.score_name],
+            q=self.num_bins,
+            labels=np.arange(self.num_bins)
         )
+        df_regr = (
+            df_regr.
+            groupby(["campaign", BUCKET_NAME], as_index=False, observed=True)[self.target_name].
+            mean().
+            sort_values(by=["campaign", BUCKET_NAME])
+        )
+        print(df_regr)
         X = df_regr[self.reg_cols]
         X_hot = self.ohe.fit_transform(X)
         y = df_regr[self.target_name].values
@@ -77,13 +140,14 @@ class Regression:  # pylint: disable=R0902
 
         quantiles = quantiles or DEFAULT_Q
 
-        df = df.copy()
+        df = df.sort_values(by=self.score_name).reset_index(drop=True)
         idx = df.copy()
 
-        df[self.bucket_name] = self.binner_serve.transform(
+        # NOTE: use binner_serve or binner_tr?
+        df[BUCKET_NAME] = self.binner_tr.transform(
             df[self.score_name].values.reshape(-1, 1)
         )
-        X = df[[self.bucket_name]].copy()
+        X = df[[BUCKET_NAME]].copy()
         X["campaign"] = self.max_campaign
         X = X[self.reg_cols]
         X_hot = self.ohe.transform(X)
@@ -114,5 +178,3 @@ class Regression:  # pylint: disable=R0902
 
         res = pd.concat((idx, cac), axis=1)
         return res
-
-
