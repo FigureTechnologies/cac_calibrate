@@ -1,9 +1,9 @@
 # cac-calibrate
 Calibrate model scores, and translate them to cac.
 
-NOTE: Tests require packages not listed in `setup.py`.
 
-# Example
+
+## Example
 Givent data frames `df_train` and `df_serve`, to calculate cac outputs, we'd do something like the following.
 ```python
 from cac_calibrate import RegressionCalibrator
@@ -17,12 +17,12 @@ rc = RegressionCalibrator(
 )
 
 # df_train.columns = [record_nb, campaign, xgbt_score, applied]
-df_train["campaign"] = df_train["campaign"].str.slice(0, 4)
+# NOTE: df_train should only contain validation and test data.
+df_train["campaign"] = df_train["campaign"].str.slice(0, 4)  # get rid of A, B, ... suffixes
 rc.fit(df_train)
 
 # df_serve.columns = [record_nb, encrypted_nb, xgbt_score]
-# use latest campaign from training as feature for serving
-df_serve["campaign"] = df_train["campaign"].astype(str).max()
+df_serve["campaign"] = df_train["campaign"].astype(str).max()  # use latest campaign as feature for serving
 
 # get cac output
 cac_output = rc.transform(
@@ -31,3 +31,8 @@ cac_output = rc.transform(
     conv_rate=0.1338
 )
 ```
+
+## Tests
+Here are some important notes on tests, if you want to run them.
+* Tests require packages not listed in `setup.py`.
+* Tests require 100+ GB of RAM
