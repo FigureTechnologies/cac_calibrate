@@ -22,7 +22,7 @@ df_train["campaign"] = df_train["campaign"].str.slice(0, 4)  # get rid of A, B, 
 rc.fit(df_train)
 
 # df_serve.columns = [record_nb, encrypted_nb, xgbt_score]
-df_serve["campaign"] = df_train["campaign"].astype(str).max()  # use latest campaign as feature for serving
+df_serve["campaign"] = df_train["campaign"].astype(str).max()  # use latest campaign as feature
 
 # get cac output
 cac_output = rc.transform(
