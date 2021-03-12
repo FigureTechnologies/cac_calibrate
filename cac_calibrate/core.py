@@ -5,30 +5,9 @@ import pandas as pd
 import sklearn.preprocessing as sp
 import statsmodels.api as stm
 
+import cac_calibrate.config as cfg
+
 BUCKET_NAME = "score_bucket"
-DEFAULT_Q = [
-    0.025,
-    0.05,
-    0.1,
-    0.15,
-    0.2,
-    0.25,
-    0.3,
-    0.35,
-    0.4,
-    0.45,
-    0.5,
-    0.55,
-    0.6,
-    0.65,
-    0.7,
-    0.75,
-    0.8,
-    0.85,
-    0.9,
-    0.95,
-    0.975
-]
 
 
 class RegressionCalibrator:  # pylint: disable=R0902
@@ -115,7 +94,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
         def prob2cac(prob):
             return mail_cost/(prob*conv_rate)
 
-        quantiles = quantiles or DEFAULT_Q
+        if quantiles is None:
+            quantiles = cfg.quantile_default
 
         df = df.sort_values(by=self.score_name).reset_index(drop=True)
         idx = df.drop(self.feature_cols, axis=1)
