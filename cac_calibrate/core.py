@@ -112,9 +112,10 @@ class RegressionCalibrator:  # pylint: disable=R0902
         preds = self.calibrator.get_prediction(X_hot)
 
         # mean and std error of cac
+        moment_cols = ["mean", "mean_se"]
         cac_moment = pd.DataFrame(
-            preds.summary_frame()[["mean", "mean_se"]].values,
-            columns=["mean", "mean_se"]
+            preds.summary_frame()[moment_cols].values,
+            columns=moment_cols
         )
         cac_moment[["cac", "cac_se"]] = prob2cac(cac_moment)
 
