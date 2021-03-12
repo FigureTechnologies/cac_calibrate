@@ -1,6 +1,8 @@
 # cac-calibrate
 Calibrate model scores, and translate them to cac.
 
+NOTE: Tests require packages not listed in `setup.py`.
+
 # Example
 Givent data frames `df_train` and `df_serve`, to calculate cac outputs, we'd do something like the following.
 ```python
