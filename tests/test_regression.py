@@ -17,7 +17,9 @@ import cac_calibrate.calibrate as cc
 DATA_DIR = join(Path(__file__).parent.absolute(), "data")
 MAIL_COST = 0.415
 CONV_RATE = 0.1338
-NUM_BINS = 10
+NUM_BINS = 20
+CAC_COMPARE_THRESHOLD = 5000
+MAX_DIFF_THRESHOLD_PCT = 0.025
 QUANTILES = [
     0.025,
     0.05,
@@ -71,9 +73,8 @@ class DataManager:
 
     def load_serve(self):
         self._check_path(self.serve_path_local)
-        res = pd.read_hdf(self.serve_path_local).iloc[:, :3]
+        res = pd.read_hdf(self.serve_path_local, start=0, stop=int(5e6)).iloc[:, :3]
         res = res.rename(columns={"score_raw": "score"})
-        res = res.sample(n=500000, random_state=0)
         return res
 
 
@@ -85,6 +86,8 @@ class TestRegression(unittest.TestCase):
             dm = DataManager()
             self.df_train = dm.load_train()
             self.df_serve = dm.load_serve()
+            self.cal_new = self.compute_calibration_new()
+            self.cal_old = self.compute_calibration_old()
             self.setup_done = True
         self.cal = None
 
@@ -115,9 +118,23 @@ class TestRegression(unittest.TestCase):
         )
         return res
 
+    def test_calibration_match(self):
+        cal_new = self.cal_new.loc[self.cal_new["cac"] <= CAC_COMPARE_THRESHOLD]
+        cal_old = self.cal_old.loc[self.cal_old["cac"] <= CAC_COMPARE_THRESHOLD]
+        merged = cal_new.merge(cal_old, on=["RECORD_NB", "ENCRYPTED_NB"], suffixes=("_new", "_old"))
+        test_cols = ["cac", "cac_0.2", "cac_0.4", "cac_0.5", "cac_0.7"]
+        for c in test_cols:
+            abs_diff = np.abs(merged[f"{c}_new"] - merged[f"{c}_old"]).mean()
+            mean = merged[[f"{c}_new", f"{c}_old"]].mean(axis=1).mean()
+            pct_diff = abs_diff/mean
+            close_enough = pct_diff < MAX_DIFF_THRESHOLD_PCT
+            self.assertTrue(close_enough)
+
 
 class CacForecaster:  # pylint: disable=R0903
-
+    """
+    Stripped down version of original cac class we want to replace.
+    """
     # pylint: disable=R0915
     @staticmethod
     def main(
@@ -175,10 +192,8 @@ class CacForecaster:  # pylint: disable=R0903
         df_scores = df_scores.sort_values(by=score_name)
 
         df["score_bucket"] = pd.qcut(df[score_name], q=NUM_BINS)
-        # print(df["score_bucket"])
 
         precision_lookup = df.groupby(["score_bucket", "campaign"]).mean()["applied"].reset_index()
-        print(precision_lookup.sort_values(by=["campaign", "applied"]))
 
         df_train_cac = precision_lookup.copy()
 
@@ -207,7 +222,6 @@ class CacForecaster:  # pylint: disable=R0903
             df_scores[score_name] > upper_bound, upper_bound, df_scores[score_name]
         )
 
-        # NOTE: why filter precision_lookup on max_campaign?
         df_scores = pd.merge_asof(
             df_scores,
             precision_lookup.loc[precision_lookup["campaign"] == max_campaign],
@@ -225,15 +239,12 @@ class CacForecaster:  # pylint: disable=R0903
 
         X = X.drop(columns=[i for i in X.columns if ("nan" in i) or (min_campaign in i)])
 
-        # print(df_train_cac[["campaign", "applied"]].sort_values(by=["campaign", "applied"]))
         y = df_train_cac["applied"]
 
         y_hat = stm.OLS(y, X).fit()
 
         results = results_summary_to_dataframe(y_hat)
-        # results = results.reset_index()
 
-        # results["index"] = df_train_cac["campaign"]
         fixed_effect = float(results.at["campaign__2101", "coeff"])
 
         cm_cols = []
