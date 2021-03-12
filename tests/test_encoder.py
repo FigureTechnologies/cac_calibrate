@@ -1,3 +1,6 @@
+"""
+Ensure that scikit-learn encoders work the way I'd expect.
+"""
 import unittest
 
 import numpy as np

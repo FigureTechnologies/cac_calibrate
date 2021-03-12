@@ -1,3 +1,8 @@
+"""
+Ensure that outputs from RegressionCalibrator are close enough to outputs from legacy calibrator.
+
+NOTE: This module requires data-science-util.
+"""
 import os
 from os.path import join
 from pathlib import Path
@@ -21,11 +26,12 @@ CONV_RATE = 0.1338
 NUM_BINS = 20
 CAC_COMPARE_THRESHOLD = 5000  # Only test cacs under this threshold
 MAX_DIFF_THRESHOLD_PCT = 0.025  # Pass tests if cac difference < this threshold
+NUM_SERVE_ROWS = int(5e6)  # Number of rows to fetch from serving predictions.
 
 
 class DataManager:
     """
-    Fetch and load data for tests.
+    Fetch and load data for tests. Use helocnet serving data for campaign 32.
     """
     def __init__(self):
         self.train_path_remote = "gs://figure-ml-pipeline/heloc/32/net_objects/train_pred.h5"
@@ -53,7 +59,7 @@ class DataManager:
 
     def load_serve(self):
         self._check_path(self.serve_path_local)
-        res = pd.read_hdf(self.serve_path_local, start=0, stop=int(5e6)).iloc[:, :3]
+        res = pd.read_hdf(self.serve_path_local, start=0, stop=NUM_SERVE_ROWS).iloc[:, :3]
         res = res.rename(columns={"score_raw": "score"})
         return res
 
