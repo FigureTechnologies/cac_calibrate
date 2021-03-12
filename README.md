@@ -32,7 +32,6 @@ cac_output = rc.transform(
 )
 ```
 
-## Tests
-Here are some important notes on tests, if you want to run them.
-* Tests require packages not listed in `setup.py`.
-* Tests use actual serving data, so they require 50+ GB of RAM.
+## Notes on Tests
+* Tests require `data-science-util` which is not listed in `setup.py`.
+* Tests use actual serving data, so they require 50+ GB of RAM and 20+ GB of disk, so don't attempt to run them locally.
