@@ -107,6 +107,9 @@ class TestRegressionCalibrator(unittest.TestCase):
         return res
 
     def test_calibration_match(self):
+        """
+        Check if old and new calibrated cacs are close.
+        """
         cal_new = self.cal_new.loc[self.cal_new["cac"] <= CAC_COMPARE_THRESHOLD]
         cal_old = self.cal_old.loc[self.cal_old["cac"] <= CAC_COMPARE_THRESHOLD]
         merged = cal_new.merge(cal_old, on=["RECORD_NB", "ENCRYPTED_NB"], suffixes=("_new", "_old"))
@@ -118,6 +121,27 @@ class TestRegressionCalibrator(unittest.TestCase):
             pct_diff = abs_diff/mean
             close_enough = pct_diff < MAX_DIFF_THRESHOLD_PCT
             self.assertTrue(close_enough)
+
+    def test_column_match(self):
+        """
+        Check if old columns are a subset of new columns.
+        """
+        missing_cols = set(self.cal_old.columns.difference(self.cal_new.columns))
+        is_missing = len(missing_cols) > 0
+        self.assertFalse(is_missing)
+
+    def test_row_match(self):
+        """
+        Test keys are the same.
+        """
+        merge_cols = ["RECORD_NB", "ENCRYPTED_NB"]
+        keep_cols = merge_cols + ["cac"]
+        merged = (
+            self.cal_new[keep_cols].
+            merge(self.cal_old[keep_cols], on=merge_cols)
+        )
+        no_rows_lost = len(merged) == len(self.cal_new)
+        self.assertTrue(no_rows_lost)
 
 
 class CacForecaster:  # pylint: disable=R0903
@@ -176,8 +200,6 @@ class CacForecaster:  # pylint: disable=R0903
             .astype("str")
             .astype(np.float32)
         )
-        precision_lookup["mid_bucket"] = \
-            precision_lookup[["lower_bucket", "upper_bucket"]].mean(axis=1)
 
         lower_bound = precision_lookup.lower_bucket.min()
         upper_bound = precision_lookup.upper_bucket.max()
