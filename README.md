@@ -16,7 +16,7 @@ rc = RegressionCalibrator(
 )
 
 # df_train.columns = [record_nb, campaign, xgbt_score, applied, ...]
-df_train = df_train.loc[df_train["flag"].isin(("VALIDATE", "TEST"))]
+df_train = df_train.loc[df_train["flag"].isin(("VALIDATE", "TEST"))].copy()
 df_train["campaign"] = df_train["campaign"].str.slice(0, 4)  # get rid of A, B, ... suffixes
 rc.fit(df_train)
 
