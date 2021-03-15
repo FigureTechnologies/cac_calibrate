@@ -8,7 +8,6 @@ Givent data frames `df_train` and `df_serve`, to calculate cac outputs, we'd do 
 ```python
 from cac_calibrate import RegressionCalibrator
 
-# instantiate and fit calibrator
 rc = RegressionCalibrator(
     score_name="xgbt_score",
     target_name="applied",
@@ -16,12 +15,12 @@ rc = RegressionCalibrator(
     feature_cols=["campaign"]
 )
 
-# df_train.columns = [record_nb, campaign, xgbt_score, applied]
-# NOTE: df_train should only contain validation and test data.
+# df_train.columns = [record_nb, campaign, xgbt_score, applied, ...]
+df_train = df_train.loc[df_train["flag"].isin(("VALIDATE", "TEST"))]
 df_train["campaign"] = df_train["campaign"].str.slice(0, 4)  # get rid of A, B, ... suffixes
 rc.fit(df_train)
 
-# df_serve.columns = [record_nb, encrypted_nb, xgbt_score]
+# df_serve.columns = [record_nb, encrypted_nb, xgbt_score, ...]
 df_serve["campaign"] = df_train["campaign"].astype(str).max()  # use latest campaign as feature
 
 # get cac output
@@ -34,4 +33,4 @@ cac_output = rc.transform(
 
 ## Notes on Tests
 * Tests require `data-science-util`, which is not listed in `setup.py`.
-* Tests use actual serving data, so they require 50+ GB of RAM and 20+ GB of disk, so don't attempt to run them locally.
+* Tests use actual serving data, so they require 50+ GB of RAM and 20+ GB of disk space.
