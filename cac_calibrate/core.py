@@ -97,8 +97,9 @@ class RegressionCalibrator:  # pylint: disable=R0902
             Note: This method will overwrite df's index.
         mail_cost: float
         conv_rate: float
-        quantiles: [float]
-            cac quantiles to return.
+        quantiles (optional): [float]
+            cac quantiles to return. If None, use cac quantiles defined by the
+            business.
 
         Returns
         -------
