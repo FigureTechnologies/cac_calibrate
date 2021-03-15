@@ -41,8 +41,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
 
         self.regr_cols = feature_cols + [BUCKET_NAME]
 
-        self.fit_cols = self.feature_cols + [score_name, target_name]
-        self.transform_cols = self.feature_cols + [score_name]
+        self.fit_cols_required = self.feature_cols + [score_name, target_name]
+        self.xf_cols_required = self.feature_cols + [score_name]
 
         self.binner = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
@@ -62,7 +62,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
             columns=[self.feature_cols] + [self.score_name, self.target_name]
         )
         """
-        self._validate_columns(df, self.fit_cols)
+        self._validate_columns(df, self.fit_cols_required)
         df = df.copy()
         df = df.sort_values(by=self.score_name)
 
@@ -106,7 +106,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
             columns=df.columns.difference(self.feature_cols) + [cac columns]
         )
         """
-        self._validate_columns(df, self.transform_cols)
+        self._validate_columns(df, self.xf_cols_required)
 
         def prob2cac(prob):
             return mail_cost/(prob*conv_rate)
@@ -131,7 +131,9 @@ class RegressionCalibrator:  # pylint: disable=R0902
             preds.summary_frame()[moment_cols].values,
             columns=moment_cols
         )
-        cac_moment[["cac", "cac_se"]] = prob2cac(cac_moment)
+        moment_map = dict(zip(moment_cols, ["cac", "cac_se"]))
+        for prob_label, cac_label in moment_map.items():
+            cac_moment[cac_label] = prob2cac(cac_moment[prob_label])
 
         # cac quantiles
         cac_quantile = dict()
