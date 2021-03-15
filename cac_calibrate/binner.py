@@ -21,12 +21,21 @@ class QuantileBinner:
         self._idx_col = "__bucket_idx__"
         self._value_col = "__bucket_value__"
 
-    def fit(self, x: np.array):
+    def fit(self, x: np.array) -> None:
+        """
+        Parameters
+        ----------
+        x: np.array
+
+        Returns
+        -------
+        None
+        """
         x = np.squeeze(x)
         buckets = pd.qcut(x, q=self.num_bins).unique()
         buckets = pd.DataFrame({
             self._idx_col: np.arange(len(buckets)),
-            self._value_col: sorted([i.left for i in buckets])
+            self._value_col: sorted([i.left for i in buckets])  # legacy uses left edge
         })
         buckets[self._value_col] = buckets[self._value_col].astype(np.float64)
         self.buckets = buckets
@@ -40,6 +49,15 @@ class QuantileBinner:
         return self.buckets[self._value_col].max()
 
     def transform(self, x: np.array) -> np.array:
+        """
+        Parameters
+        ----------
+        x: np.array
+
+        Returns
+        -------
+        np.array
+        """
         x = np.squeeze(x).astype(np.float64)
         idx_sort = np.argsort(x)
         x = x[idx_sort]
@@ -63,5 +81,14 @@ class QuantileBinner:
         return buckets_unsorted
 
     def fit_transform(self, x: np.array) -> np.array:
+        """
+        Parameters
+        ----------
+        x: np.array
+
+        Returns
+        -------
+        np.array
+        """
         self.fit(x)
         return self.transform(x)
