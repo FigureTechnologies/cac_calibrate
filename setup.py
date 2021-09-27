@@ -11,6 +11,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "pandas",
+        "pytest",
         "numpy",
         "statsmodels",
         "scikit_learn"
