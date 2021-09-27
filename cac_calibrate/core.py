@@ -17,7 +17,7 @@ class RegressionCalibrator:  # pylint: disable=R0902
         score_name: str,
         target_name: str,
         num_bins: int,
-        feature_cols: List[str]
+        feature_cols: List[str] = None
     ):
         """
         Convert scores to cac using binning/regression.
@@ -37,6 +37,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
         self.score_name = score_name
         self.target_name = target_name
         self.num_bins = num_bins
+        if feature_cols is None:
+            feature_cols = []
         self.feature_cols = feature_cols
 
         self.regr_cols = feature_cols + [BUCKET_NAME]
