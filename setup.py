@@ -13,6 +13,7 @@ setup(
         "pandas",
         "pytest",
         "numpy",
+        "ray==1.4.1",
         "statsmodels",
         "scikit_learn"
     ],
