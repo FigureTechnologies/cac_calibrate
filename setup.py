@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="cac_calibrate",
-    version="0.01",
+    version="0.02",
     description="",
     author="Andrew Hah",
     author_email="hahdawg@yahoo.com",
