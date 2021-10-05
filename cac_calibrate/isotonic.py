@@ -43,6 +43,7 @@ class IsotonicCalibrator:
         mail_cost: float
         conv_rate: float
         quantiles (optional): List[float]
+            Example, 25th and 75th percentiles, respectively should be 0.25 and 0.75.
         num_rows_per_chunk: int
             Split df into len(df) // num_rows_per_chunk chunks, and transform in parallel.
 
@@ -51,7 +52,12 @@ class IsotonicCalibrator:
         DataFrame
         """
         if quantiles is None:
-            quantiles = [100*q for q in cfg.quantile_default]
+            quantiles = cfg.quantile_default
+
+        if max(quantiles) > 1:
+            raise ValueError("All elements in quantiles must be in [0, 1].")
+
+        quantiles = [100*q for q in quantiles]
 
         df_split = np.array_split(df, len(df) // num_rows_per_chunk, axis=0)
         output = ray.get([
@@ -64,7 +70,7 @@ class IsotonicCalibrator:
             )
             for df_chunk in df_split
         ])
-        output = pd.concat(output, axis=0).reset_index()
+        output = pd.concat(output, axis=0).reset_index(drop=True)
         idx_cols = df.columns.difference(output.columns).to_list()
         output = pd.concat([df[idx_cols].reset_index(drop=True), output], axis=1)
         return output
@@ -77,8 +83,8 @@ def _ic_fit(ic: IsotonicCalibrator, df: pd.DataFrame, seed: int) -> Union[si.Iso
 
     Fit a single isotonic regression to df.
     """
-    calibrator = si.IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True, out_of_bounds="clip")
-    df = df[[ic.score_name, ic.target_name]].sample(frac=1.0, random_state=seed)
+    calibrator = si.IsotonicRegression(y_min=1e-8, y_max=1.0, increasing=True, out_of_bounds="clip")
+    df = df[[ic.score_name, ic.target_name]].sample(frac=1.0, random_state=seed, replace=True)
     X = df[ic.score_name].values.reshape(-1, 1)
     y = df[ic.target_name].values
     if sum(y) == 0:
@@ -141,7 +147,7 @@ def _ic_compute_stats(
 
     quantiles = pd.DataFrame(
         np.percentile(cac_samples, q=quantiles, axis=1).T,
-        columns=[f"cac_{q/100:4}" for q in quantiles]
+        columns=[f"cac_{q/100:3}" for q in quantiles]
     )
 
     output = pd.concat([output, quantiles], axis=1)
