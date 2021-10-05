@@ -1,1 +1,2 @@
-from cac_calibrate.core import RegressionCalibrator
+from cac_calibrate.isotonic import IsotonicCalibrator
+from cac_calibrate.linear_regression.core import RegressionCalibrator
