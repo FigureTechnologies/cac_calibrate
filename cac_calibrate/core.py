@@ -45,8 +45,8 @@ class RegressionCalibrator:  # pylint: disable=R0902
 
         self.fit_cols_required = self.feature_cols + [score_name, target_name]
         self.xf_cols_required = self.feature_cols + [score_name]
-
-        self.binner = sp.KBinsDiscretizer(n_bins=num_bins, encode="ordinal")
+        self.binner = sp.KBinsDiscretizer(n_bins=num_bins, strategy="quantile",
+                                          encode="ordinal")
         self.ohe = sp.OneHotEncoder(categories="auto", drop="first", sparse=False)
         self.calibrator = None
 
